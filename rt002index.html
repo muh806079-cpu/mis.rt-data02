@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sistem Data RT - Pendataan & Iuran Warga (Login)</title>
+  <style>
+    :root{--bg:#f6f8fb;--card:#fff;--muted:#6b7280;--accent:#0f62fe;--danger:#ef4444}
+    *{box-sizing:border-box}
+    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial; margin:0; background:var(--bg); color:#0b1220}
+    .container{max-width:1100px;margin:28px auto;padding:20px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(11,18,32,0.06)}
+    .grid{display:grid;grid-template-columns:1fr 420px;gap:18px}
+    label{display:block;font-size:13px;margin-bottom:6px;color:var(--muted)}
+    input[type=text], input[type=tel], input[type=number], select, input[type=date], input[type=password]{width:100%;padding:10px;border-radius:8px;border:1px solid #e6e9ef;margin-bottom:12px}
+    .btn{display:inline-block;padding:10px 12px;border-radius:9px;border:none;cursor:pointer;background:var(--accent);color:white;font-weight:600}
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(15,98,254,0.12)}
+    .btn.danger{background:var(--danger)}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:8px 10px;border-bottom:1px solid #f1f3f6;font-size:13px;text-align:left}
+    th{background:transparent;color:var(--muted);font-weight:600}
+    .small{font-size:12px;color:var(--muted)}
+    .flex{display:flex;gap:8px;align-items:center}
+    .search{margin-bottom:12px;display:flex;gap:8px}
+    .badge{display:inline-block;padding:6px 8px;border-radius:999px;font-size:12px;background:#f1f5f9}
+    .muted{color:var(--muted)}
+    .right-actions{display:flex;gap:8px;align-items:center}
+    .top-right{display:flex;gap:8px;align-items:center}
+    .note{font-size:13px;color:#334155}
+    @media(max-width:980px){.grid{grid-template-columns:1fr;}.right-actions{flex-wrap:wrap}}
+    /* simple modal */
+    .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.45);z-index:50}
+    .modal .card{width:420px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Sistem Data RT — Pendataan Warga & Iuran</h1>
+        <div class="small muted">Warga dapat login menggunakan <strong>NIK</strong> yang sudah terdaftar. (Prototype: penyimpanan lokal)</div>
+      </div>
+      <div class="top-right">
+        <div id="userArea" class="right-actions"></div>
+        <button class="btn ghost" id="exportAll">Ekspor CSV</button>
+        <button class="btn ghost" id="importBtn">Impor CSV</button>
+        <input type="file" id="fileInput" accept="text/csv" style="display:none">
+      </div>
+    </header>
+
+    <div class="grid">
+      <div>
+        <div class="card" id="adminPanel">
+          <h3 style="margin-top:0">Form Data Warga (Admin)</h3>
+          <div class="small muted">Hanya terlihat oleh admin yang login.</div>
+          <div style="margin-top:12px">
+            <label>Nama Lengkap</label>
+            <input type="text" id="name" placeholder="Nama lengkap">
+            <label>No. KTP (NIK)</label>
+            <input type="text" id="nik" placeholder="NIK (16 digit)">
+            <label>Jumlah Anggota Keluarga</label>
+            <input type="number" id="familyCount" min="1" value="1">
+            <label>Status</label>
+            <select id="status">
+              <option value="Kepala Keluarga">Kepala Keluarga</option>
+              <option value="Anggota Keluarga">Anggota Keluarga</option>
+              <option value="Pendatang">Pendatang</option>
+            </select>
+            <label>No. Telepon</label>
+            <input type="tel" id="phone" placeholder="08xx...">
+            <div style="display:flex;gap:8px;margin-top:6px">
+              <button class="btn" id="saveResident">Simpan</button>
+              <button class="btn ghost" id="resetForm">Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="residentListCard" style="margin-top:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h3 style="margin:0">Daftar Warga <span id="countBadge" class="badge">0</span></h3>
+            <div class="search">
+              <input type="text" id="search" placeholder="Cari nama atau NIK" style="padding:8px;border-radius:8px;border:1px solid #e6e9ef">
+              <button class="btn ghost" id="clearSearch">Clear</button>
+            </div>
+          </div>
+
+          <div style="overflow:auto;max-height:360px;margin-top:8px">
+            <table id="residentsTable">
+              <thead><tr><th>Nama</th><th>NIK</th><th>KK</th><th>Status</th><th>Telp</th><th>Saldo</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0">Transaksi Iuran</h3>
+          <div class="small muted">Catat pemasukan iuran. Warga yang login hanya bisa mencatat untuk dirinya sendiri.</div>
+          <div style="margin-top:12px">
+            <label>Pilih Warga (NIK)</label>
+            <select id="selectResident"><option value="">-- pilih warga --</option></select>
+            <label>Tanggal</label>
+            <input type="date" id="txDate">
+            <label>Jumlah (Rp)</label>
+            <input type="number" id="amount" min="0" value="0">
+            <label>Keterangan</label>
+            <input type="text" id="description" placeholder="Mis: Iuran bulan Januari">
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn" id="addTx">Tambah Transaksi</button>
+              <button class="btn ghost" id="showTxList">Tampilkan Semua Transaksi</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <h3 style="margin-top:0">Riwayat Transaksi</h3>
+          <div class="small muted">Semua transaksi tercatat di sini. Warga hanya melihat transaksi miliknya saat login warga.</div>
+          <div style="overflow:auto;max-height:420px;margin-top:10px">
+            <table id="txTable"><thead><tr><th>Tgl</th><th>NIK</th><th>Nama</th><th>Jumlah</th><th>Keterangan</th><th></th></tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer style="margin-top:18px;text-align:center;color:var(--muted)">Prototype — data disimpan di browser (localStorage). Untuk multi-user real-time gunakan server & database. Default admin: NIK <strong>0000</strong> password <strong>admin123</strong> (silakan ubah).</footer>
+  </div>
+
+  <!-- Login modal -->
+  <div id="loginModal" class="modal" style="display:none">
+    <div class="card">
+      <h3>Login Warga / Admin</h3>
+      <div class="small muted">Masukkan NIK Anda untuk login sebagai warga. Untuk admin gunakan NIK 0000 dan password.</div>
+      <div style="margin-top:12px">
+        <label>NIK</label>
+        <input type="text" id="loginNik" placeholder="Masukkan NIK">
+        <label id="pwdLabel" style="display:none">Password (admin)</label>
+        <input type="password" id="loginPwd" placeholder="Password admin" style="display:none">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn" id="loginBtn">Login</button>
+          <button class="btn ghost" id="closeLogin">Batal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // localStorage keys
+    const LS_RES = 'rt_residents_v1';
+    const LS_TX = 'rt_transactions_v1';
+    const LS_USER = 'rt_current_user_v1';
+
+    // initial data load
+    let residents = JSON.parse(localStorage.getItem(LS_RES) || '[]');
+    let transactions = JSON.parse(localStorage.getItem(LS_TX) || '[]');
+    let currentUser = JSON.parse(localStorage.getItem(LS_USER) || 'null');
+
+    // DOM elements
+    const userArea = document.getElementById('userArea');
+    const adminPanel = document.getElementById('adminPanel');
+    const residentListCard = document.getElementById('residentListCard');
+
+    // other elements reuse from original file
+    const nameEl = document.getElementById('name');
+    const nikEl = document.getElementById('nik');
+    const familyCountEl = document.getElementById('familyCount');
+    const statusEl = document.getElementById('status');
+    const phoneEl = document.getElementById('phone');
+    const saveResidentBtn = document.getElementById('saveResident');
+    const residentsTableBody = document.querySelector('#residentsTable tbody');
+    const selectResident = document.getElementById('selectResident');
+    const txDate = document.getElementById('txDate');
+    const amountEl = document.getElementById('amount');
+    const descriptionEl = document.getElementById('description');
+    const addTxBtn = document.getElementById('addTx');
+    const txTableBody = document.querySelector('#txTable tbody');
+    const countBadge = document.getElementById('countBadge');
+    const searchEl = document.getElementById('search');
+    const clearSearchBtn = document.getElementById('clearSearch');
+    const resetFormBtn = document.getElementById('resetForm');
+    const exportBtn = document.getElementById('exportAll');
+    const importBtn = document.getElementById('importBtn');
+    const fileInput = document.getElementById('fileInput');
+    const showTxListBtn = document.getElementById('showTxList');
+
+    const loginModal = document.getElementById('loginModal');
+    const loginNik = document.getElementById('loginNik');
+    const loginPwd = document.getElementById('loginPwd');
+    const pwdLabel = document.getElementById('pwdLabel');
+    const loginBtn = document.getElementById('loginBtn');
+    const closeLogin = document.getElementById('closeLogin');
+
+    // default admin account: add if not exist
+    function ensureDefaultAdmin(){
+      if(!Array.isArray(residents)) residents = [];
+      if(!residents.find(r=>String(r.nik) === '0000')){
+        residents.push({
+          id:'r_admin',
+          name:'Admin RT',
+          nik:'0000',
+          familyCount:1,
+          status:'Admin',
+          phone:'',
+          createdAt:new Date().toISOString(),
+          isAdmin:true
+        });
+        saveLS();
+      }
+    }
+    ensureDefaultAdmin();
+
+    function saveLS(){
+      localStorage.setItem(LS_RES, JSON.stringify(residents));
+      localStorage.setItem(LS_TX, JSON.stringify(transactions));
+      localStorage.setItem(LS_USER, JSON.stringify(currentUser));
+    }
+
+    function formatNumber(n){return Number(n).toLocaleString('id-ID');}
+    function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]); }
+
+    function calcBalance(residentId){
+      return transactions.filter(t=>t.residentId===residentId).reduce((s,t)=>s+Number(t.amount||0),0);
+    }
+
+    // Render functions
+    function renderUserArea(){
+      userArea.innerHTML='';
+      if(currentUser){
+        const span = document.createElement('div'); span.className='note'; span.innerHTML = `Halo <strong>${escapeHtml(currentUser.name)}</strong> (${escapeHtml(currentUser.nik)})`;
+        const logoutBtn = document.createElement('button'); logoutBtn.className='btn ghost'; logoutBtn.textContent='Logout'; logoutBtn.addEventListener('click', ()=>{ currentUser=null; saveLS(); renderAll(); });
+        userArea.appendChild(span); userArea.appendChild(logoutBtn);
+      } else {
+        const loginBtnTop = document.createElement('button'); loginBtnTop.className='btn'; loginBtnTop.textContent='Login'; loginBtnTop.addEventListener('click', ()=>openLogin());
+        userArea.appendChild(loginBtnTop);
+      }
+    }
+
+    function renderResidents(filter=''){
+      residentsTableBody.innerHTML = '';
+      selectResident.innerHTML = '<option value="">-- pilih warga --</option>';
+      const f = filter.trim().toLowerCase();
+      const list = residents.filter(r => !f || (r.name+r.nik).toLowerCase().includes(f));
+      list.forEach(r => {
+        const bal = calcBalance(r.id);
+        const tr = document.createElement('tr');
+        let actions = '';
+        if(currentUser && currentUser.isAdmin){
+          actions = `<button class="btn ghost" data-id="${r.id}" data-action="edit">Edit</button><button class="btn ghost" data-id="${r.id}" data-action="tx">Tx</button><button class="btn danger" data-id="${r.id}" data-action="del">Hapus</button>`;
+        } else if(currentUser && currentUser.nik===r.nik){
+          actions = `<button class="btn ghost" data-id="${r.id}" data-action="tx">Tambah Iuran</button>`;
+        } else {
+          actions = '<span class="small muted">-</span>';
+        }
+        tr.innerHTML = `<td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.nik)}</td><td>${r.familyCount}</td><td>${escapeHtml(r.status)}</td><td>${escapeHtml(r.phone)}</td><td>Rp ${formatNumber(bal)}</td><td class="flex">${actions}</td>`;
+        residentsTableBody.appendChild(tr);
+        const opt = document.createElement('option'); opt.value = r.id; opt.text = `${r.name} — ${r.nik}`; selectResident.appendChild(opt);
+      });
+      countBadge.textContent = residents.length;
+
+      // show/hide admin-only panel
+      if(currentUser && currentUser.isAdmin){ adminPanel.style.display='block'; residentListCard.style.display='block'; } else { adminPanel.style.display='none'; residentListCard.style.display='block'; }
+
+      // if logged in as resident, preselect them in tx form
+      if(currentUser && !currentUser.isAdmin){
+        const r = residents.find(x=>x.nik===currentUser.nik);
+        if(r) selectResident.value = r.id;
+      }
+    }
+
+    function renderTx(filterResidentId=''){
+      txTableBody.innerHTML = '';
+      const list = transactions.slice().sort((a,b)=> new Date(b.date) - new Date(a.date));
+      list.forEach(tx => {
+        if(filterResidentId && tx.residentId !== filterResidentId) return;
+        // if currentUser is resident, only show their transactions
+        if(currentUser && !currentUser.isAdmin && tx.nik !== currentUser.nik) return;
+        const resident = residents.find(r=>r.id===tx.residentId) || {name:'-','nik':tx.nik};
+        const tr = document.createElement('tr');
+        const delBtn = (currentUser && currentUser.isAdmin) ? `<button class="btn ghost" data-id="${tx.id}" data-action="delTx">Hapus</button>` : '';
+        tr.innerHTML = `<td>${tx.date}</td><td>${escapeHtml(tx.nik||'')}</td><td>${escapeHtml(resident.name||'')}</td><td>Rp ${formatNumber(tx.amount)}</td><td>${escapeHtml(tx.description||'')}</td><td>${delBtn}</td>`;
+        txTableBody.appendChild(tr);
+      });
+    }
+
+    // Events and actions
+    function openLogin(){ loginNik.value=''; loginPwd.value=''; pwdLabel.style.display='none'; loginPwd.style.display='none'; loginModal.style.display='flex'; }
+    function closeLoginModal(){ loginModal.style.display='none'; }
+
+    // show password field when nik is admin nik
+    loginNik.addEventListener('input', ()=>{
+      if(loginNik.value.trim()==='0000'){ pwdLabel.style.display='block'; loginPwd.style.display='block'; } else { pwdLabel.style.display='none'; loginPwd.style.display='none'; }
+    });
+
+    // improved login handler: allow admin creation/login on-the-fly
+    loginBtn.addEventListener('click', ()=>{
+      const nik = loginNik.value.trim();
+      if(!nik){ alert('Masukkan NIK'); return; }
+
+      // admin shortcut: if nik is 0000, check password and create admin if needed
+      if(nik === '0000'){
+        const pwd = loginPwd.value || '';
+        if(pwd !== 'admin123'){ alert('Password admin salah'); return; }
+
+        let admin = residents.find(r=>String(r.nik) === '0000');
+        if(!admin){
+          admin = { id:'r_admin', name:'Admin RT', nik:'0000', familyCount:1, status:'Admin', phone:'', createdAt:new Date().toISOString(), isAdmin:true };
+          residents.push(admin);
+          saveLS();
+        }
+        currentUser = { nik: admin.nik, name: admin.name, isAdmin: true };
+        saveLS(); closeLoginModal(); renderAll();
+        return;
+      }
+
+      // normal resident login
+      const resident = residents.find(r=>String(r.nik) === nik);
+      if(!resident){ alert('NIK tidak ditemukan. Hubungi admin RT.'); return; }
+      currentUser = { nik: resident.nik, name: resident.name, isAdmin: resident.isAdmin||false };
+      saveLS(); closeLoginModal(); renderAll();
+    });
+    closeLogin.addEventListener('click', closeLoginModal);
+
+    // save resident (admin)
+    saveResidentBtn.addEventListener('click', ()=>{
+      if(!currentUser || !currentUser.isAdmin){ alert('Hanya admin yang bisa menambah atau mengedit data warga.'); return; }
+      const name = nameEl.value.trim();
+      const nik = nikEl.value.trim();
+      const familyCount = Number(familyCountEl.value)||1;
+      const status = statusEl.value;
+      const phone = phoneEl.value.trim();
+      if(!name || !nik){ alert('Nama dan NIK wajib diisi'); return; }
+      const exists = residents.find(r=>r.nik===nik);
+      if(exists){
+        if(saveResidentBtn.dataset.editId){
+          const id = saveResidentBtn.dataset.editId; const r = residents.find(x=>x.id===id);
+          if(r){ r.name=name; r.nik=nik; r.familyCount=familyCount; r.status=status; r.phone=phone; }
+          delete saveResidentBtn.dataset.editId; saveResidentBtn.textContent='Simpan';
+        } else { alert('NIK sudah terdaftar — gunakan edit jika ingin mengganti.'); return; }
+      } else {
+        const id = 'r'+Date.now(); residents.push({id,name,nik,familyCount,status,phone,createdAt:new Date().toISOString()});
+      }
+      saveLS(); renderResidents(searchEl.value); renderTx(); resetForm();
+    });
+
+    function resetForm(){ nameEl.value=''; nikEl.value=''; familyCountEl.value=1; statusEl.value='Kepala Keluarga'; phoneEl.value=''; delete saveResidentBtn.dataset.editId; saveResidentBtn.textContent='Simpan'; }
+    resetFormBtn.addEventListener('click', resetForm);
+
+    residentsTableBody.addEventListener('click', e=>{
+      const btn = e.target.closest('button'); if(!btn) return;
+      const id = btn.dataset.id; const action = btn.dataset.action;
+      if(action==='edit'){
+        if(!currentUser || !currentUser.isAdmin) return; const r = residents.find(x=>x.id===id); if(!r) return;
+        nameEl.value=r.name; nikEl.value=r.nik; familyCountEl.value=r.familyCount; statusEl.value=r.status; phoneEl.value=r.phone; saveResidentBtn.dataset.editId=r.id; saveResidentBtn.textContent='Simpan Perubahan';
+      } else if(action==='del'){
+        if(!currentUser || !currentUser.isAdmin) return; if(confirm('Hapus data warga ini? Semua transaksi terkait juga akan dihapus.')){
+          residents = residents.filter(x=>x.id!==id);
+          transactions = transactions.filter(t=>t.residentId!==id);
+          saveLS(); renderResidents(searchEl.value); renderTx();
+        }
+      } else if(action==='tx'){
+        // preselect resident in tx form
+        selectResident.value = id;
+      }
+    });
+
+    addTxBtn.addEventListener('click', ()=>{
+      const residentId = selectResident.value;
+      const date = txDate.value || new Date().toISOString().slice(0,10);
+      const amount = Number(amountEl.value)||0;
+      const description = descriptionEl.value.trim();
+      if(!residentId){ alert('Pilih warga terlebih dahulu'); return; }
+      // if user is logged in as resident, ensure residentId matches
+      if(currentUser && !currentUser.isAdmin){ const r = residents.find(x=>x.id===residentId); if(!r || r.nik !== currentUser.nik){ alert('Anda hanya dapat mencatat iuran untuk diri sendiri.'); return; } }
+      if(amount<=0){ alert('Jumlah harus lebih dari 0'); return; }
+      const resident = residents.find(r=>r.id===residentId);
+      const id = 't'+Date.now();
+      transactions.push({id,residentId,nik:resident?resident.nik:'',amount,date,description});
+      saveLS(); renderTx(); renderResidents(searchEl.value);
+      amountEl.value='0'; descriptionEl.value='';
+    });
+
+    txTableBody.addEventListener('click', e=>{
+      const btn = e.target.closest('button'); if(!btn) return;
+      if(btn.dataset.action==='delTx'){
+        if(!currentUser || !currentUser.isAdmin) return; const id = btn.dataset.id; if(confirm('Hapus transaksi ini?')){ transactions = transactions.filter(t=>t.id!==id); saveLS(); renderTx(); renderResidents(searchEl.value); }
+      }
+    });
+
+    searchEl.addEventListener('input', ()=>renderResidents(searchEl.value));
+    clearSearchBtn.addEventListener('click', ()=>{ searchEl.value=''; renderResidents(''); });
+
+    // export/import (fixed newline join)
+    exportBtn.addEventListener('click', ()=>{
+      const rows = [];
+      rows.push(['type','id','name','nik','familyCount','status','phone','createdAt','txId','txDate','txAmount','txDesc','txResidentId'].join(','));
+      residents.forEach(r=>{
+        rows.push(['resident',r.id,`"${r.name.replace(/"/g,'""') }"`,r.nik,r.familyCount,r.status,r.phone,r.createdAt,'','','','',''].join(','));
+      });
+      transactions.forEach(t=>{
+        rows.push(['transaction','',`""`,t.nik,'','','','',t.id,t.date,t.amount,`"${(t.description||'').replace(/"/g,'""') }"`,t.residentId].join(','));
+      });
+      const csv = rows.join('\n');
+      const blob = new Blob([csv],{type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='rt_data_export.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    importBtn.addEventListener('click', ()=>fileInput.click());
+    fileInput.addEventListener('change', e=>{
+      const f = e.target.files[0]; if(!f) return; const reader = new FileReader();
+      reader.onload = ev => {
+        try{ parseImportCSV(ev.target.result); alert('Impor selesai'); }catch(err){ alert('Gagal mengimpor: '+err.message); }
+      };
+      reader.readAsText(f);
+    });
+
+    function parseImportCSV(text){
+      const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+      if(lines.length<2) throw new Error('CSV kosong');
+      const dataLines = lines.slice(1);
+      dataLines.forEach(line=>{
+        const cols = parseCSVLine(line);
+        const type = cols[0];
+        if(type==='resident'){
+          const id=cols[1]||'r'+Date.now()+Math.random();
+          const name = unquote(cols[2]||'');
+          const nik = cols[3]||'';
+          const familyCount = Number(cols[4])||1;
+          const status = cols[5]||'Kepala Keluarga';
+          const phone = cols[6]||'';
+          const createdAt = cols[7]||new Date().toISOString();
+          if(!residents.find(r=>r.nik===nik)) residents.push({id,name,nik,familyCount,status,phone,createdAt});
+        } else if(type==='transaction'){
+          const id = cols[8] || ('t'+Date.now()+Math.random());
+          const date = cols[9]||new Date().toISOString().slice(0,10);
+          const amount = Number(cols[10])||0;
+          const desc = unquote(cols[11]||'');
+          const residentId = cols[12]||'';
+          transactions.push({id,residentId,nik:cols[3]||'',amount,date,description:desc});
+        }
+      });
+      saveLS(); renderResidents(); renderTx();
+    }
+
+    function parseCSVLine(line){
+      const res=[]; let cur=''; let inQ=false;
+      for(let i=0;i<line.length;i++){
+        const ch=line[i];
+        if(ch==='"'){ inQ = !inQ; continue; }
+        if(ch===',' && !inQ){ res.push(cur); cur=''; } else cur+=ch;
+      }
+      res.push(cur);
+      return res.map(s=>s.trim());
+    }
+    function unquote(s){return s.replace(/^"|"$/g,'');}
+
+    showTxListBtn.addEventListener('click', ()=>{ renderTx(); });
+
+    // initial render
+    function renderAll(){ renderUserArea(); renderResidents(); renderTx(); }
+    renderAll();
+
+  </script>
+</body>
+</html>
